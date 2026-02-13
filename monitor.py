@@ -106,9 +106,6 @@ def save_seen(seen_ids):
 def send_slack_notification(new_announcements):
     if not SLACK_WEBHOOK_URL:
         print("SLACK_WEBHOOK_URL이 설정되지 않았습니다.")
-        for ann in new_announcements:
-            priority = "⭐ " if ann["is_priority"] else ""
-            print(f"  {priority}[{ann['status']}] {ann['title']}")
         return
 
     priority_anns = [a for a in new_announcements if a["is_priority"]]
@@ -122,22 +119,26 @@ def send_slack_notification(new_announcements):
 
     if priority_anns:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "⭐ *어라운드 관련 공고*"}})
-        for ann in priority_anns:
+        for ann in priority_anns[:15]:
             status_emoji = {"접수중": "🟢", "접수전": "🟡", "접수마감": "🔴"}.get(ann["status"], "⚪")
             blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": (
                 f"{status_emoji} *{ann['title']}*\n📂 {ann['team']}\n📅 공고일: {ann['date']}\n⏰ 접수: {ann['period']}\n👥 대상: {ann['target']}"
             )}})
-            blocks.append({"type": "divider"})
+        if len(priority_anns) > 15:
+            blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": f"...외 관심 공고 {len(priority_anns) - 15}건 더 있음"}]})
+        blocks.append({"type": "divider"})
 
     if normal_anns:
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "📋 *기타 공고*"}})
-        for ann in normal_anns:
-            status_emoji = {"접수중": "🟢", "접수전": "🟡", "접수마감": "🔴"}.get(ann["status"], "⚪")
-            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"{status_emoji} *{ann['title']}*\n📅 {ann['date']} | 👥 {ann['target']}"}})
+        normal_list = "\n".join([
+            f"{'🟢' if a['status']=='접수중' else '🟡' if a['status']=='접수전' else '🔴' if a['status']=='접수마감' else '⚪'} {a['title']}"
+            for a in normal_anns[:20]
+        ])
+        extra = f"\n...외 {len(normal_anns) - 20}건" if len(normal_anns) > 20 else ""
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"📋 *기타 공고 {len(normal_anns)}건*\n{normal_list}{extra}"}})
 
     payload = {
         "text": f"DICIA 새 공고 {len(new_announcements)}건 (관심 {len(priority_anns)}건)",
-        "blocks": blocks
+        "blocks": blocks[:49]
     }
 
     try:
